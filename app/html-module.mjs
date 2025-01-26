@@ -104,11 +104,11 @@ export const logoutpage = (prompt = '') => {
     return `
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        h2 { color: #333; }
+        h4 { color: #333; }
         button { padding: 10px 20px; font-size: 16px; background-color: #007BFF; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
         button:hover { background-color: #0056b3; }
     </style>
-    <h2>${prompt}</h2>
+    <h4>${prompt}</h4>
     <form action="/logout" method="POST">
         <button type="submit">Logout</button>
     </form>`;}

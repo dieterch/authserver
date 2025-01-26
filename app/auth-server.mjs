@@ -1,6 +1,6 @@
 import express from "express";
 import  cookieParser from "cookie-parser"; // Middleware for cookies
-import { authenticate, generateToken, verifyToken, isAllowedOrigin } from "./auth-module.mjs";
+import { authenticate, getuser, generateToken, verifyToken, isAllowedOrigin, isAllowedRole } from "./auth-module.mjs";
 import { loginpage, logoutpage } from "./html-module.mjs";
 
 const app = express();
@@ -33,7 +33,7 @@ app.get("/", (req, res) => {
       // second: '2-digit',
     });
 
-    const prompt = `${String(rec.username).toUpperCase()}, expires ${formatter.format(new Date(rec.exp * 1000))}`
+    const prompt = `${String(rec.username).toUpperCase()}, ${formatter.format(new Date(rec.exp * 1000))}`
     return res.send(logoutpage(prompt));
   }
   // else go to login.
@@ -56,7 +56,7 @@ app.post("/login", (req, res) => {
     return res.redirect(req.query.redirect || "/login");
   }
 
-  res.status(401).send("Invalid credentials");
+  res.status(401).send("<h2>Invalid credentials</h2>");
 });
 
 // Logout Endpoint: Clear the cookie and redirect to login
@@ -74,21 +74,34 @@ app.get("/verify", (req, res) => {
   const origin = req.hostname;
   // console.log('origin:',origin)
   if (!isAllowedOrigin(origin)) {
-    return res.status(403).send("Forbidden");
+    return res.status(403).send("<h2>Forbidden</h2>");
   }
 
   const token = req.cookies.auth;
 
   if (!token || !verifyToken(token)) {
-    console.log('verify failed')
+    // redirect to login:
     const redirecto = req.headers['x-forwarded-proto'] + '://auth' + process.env.DOMAIN + '/login'
-    // console.log('redirect to:', redirecto)
     return res.redirect(302,redirecto);
-    // return res.redirect(302, `/login?redirect=${req.query.redirect || "/"}`);
   }
 
-  // Authorized
-  res.sendStatus(200);
+  // role based authorization
+  const rec = verifyToken(token)
+  const user = getuser(rec.username)
+  // console.log()
+  // console.log('================================')
+  // console.log(user)
+  // console.log('referer:', req.headers.referer)
+  // console.log('x-forwarded-host:',req.headers['x-forwarded-host'])
+  const allowed = isAllowedRole(user.role,req.headers['x-forwarded-host']) 
+  // console.log(allowed)
+
+  if (allowed) {
+    // Authorized
+    res.sendStatus(200);
+  } else {
+    res.status(403).send("<h2>Forbidden</h2>");
+  }
 });
 
 // Start the server

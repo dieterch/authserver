@@ -27,12 +27,22 @@ export function authenticate(username, password) {
 }
 
 /**
+ * Get user.
+ * @param {string} username
+ * @returns {object}
+ */
+export function getuser(username) {
+  const user = users.find((u) => u.username === username);
+  return user;
+}
+
+/**
  * Generate a JWT token.
  * @param {string} username
  * @returns {string}
  */
 export function generateToken(username) {
-  return jwt.sign({ username }, secretKey, { expiresIn: "4w" });
+  return jwt.sign({ username }, secretKey, { expiresIn: "1y" });
 }
 
 /**
@@ -56,4 +66,16 @@ export function verifyToken(token) {
 export function isAllowedOrigin(origin) {
   const allowedOrigins = ["auth-server"];
   return allowedOrigins.includes(origin);
+}
+
+/**
+ * Restrict Authorization based on role and host
+ * @param {string} role
+ * @param {string} fwhost
+ * @returns {boolean}
+ */
+export function isAllowedRole(role, fwhost) {
+  const notAllowedAsUser = process.env.RESTRICTED_SERVERS.split(",")
+  // console.log(notAllowedAsUser)
+  return (role === 'admin') || !(notAllowedAsUser.includes(fwhost.split('.')[0]));
 }
