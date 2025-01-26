@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+import bcrypt from 'bcrypt'
+
+const args = process.argv.slice(2);
+
+if (args.length < 1) {
+    console.log('Usage: hashpw pw1 [pw2 ...]')
+    process.exit(1)
+}
+
+console.log('------------------ hashes pw -------------------')
+args.forEach((pw, index, array) => {
+    console.log(`t${bcrypt.hashSync(pw, 10)}\t${pw}`)
+})
+console.log('------------------ hashes pw -------------------')
