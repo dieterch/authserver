@@ -1,0 +1,6 @@
+
+2025-01-26T20:28:40.553Z | User: susanne | Action: login | Status: success
+2025-01-26T20:30:54.660Z | User: susanne | Action: logout | Status: -
+2025-01-26T20:31:11.141Z | User: dieter | Action: login | Status: fail
+2025-01-26T20:31:32.892Z | User: dieter | Action: login | Status: success
+2025-01-26T20:31:34.570Z | User: dieter | Action: login | Status: success

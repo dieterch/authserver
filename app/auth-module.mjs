@@ -15,6 +15,8 @@ const users = Object.entries(process.env)
     return { username, role, hashedPassword };
   });
 
+// console.log(users)
+
 /**
  * Authenticate user credentials.
  * @param {string} username
@@ -42,7 +44,7 @@ export function getuser(username) {
  * @returns {string}
  */
 export function generateToken(username) {
-  return jwt.sign({ username }, secretKey, { expiresIn: "1y" });
+  return jwt.sign({ username }, secretKey, { expiresIn: process.env.JWT_LIFETIME });
 }
 
 /**

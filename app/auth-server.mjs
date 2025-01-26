@@ -1,7 +1,18 @@
 import express from "express";
 import  cookieParser from "cookie-parser"; // Middleware for cookies
+import fs from 'fs/promises';
+import path from 'path';
 import { authenticate, getuser, generateToken, verifyToken, isAllowedOrigin, isAllowedRole } from "./auth-module.mjs";
 import { loginpage, logoutpage } from "./html-module.mjs";
+
+const logFile = path.resolve('auth-log.txt');
+// Helper function to log events
+const logEvent = async (user, action, status) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = `${timestamp} | User: ${user} | Action: ${action} | Status: ${status}\n`;
+  console.log(logEntry); // Log to console
+  await fs.appendFile(logFile, logEntry); // Append to log file
+};
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
@@ -47,20 +58,28 @@ app.get("/login", (req, res) => {
 });
 
 // Handle Login
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   if (authenticate(username, password)) {
     const token = generateToken(username);
     res.cookie("auth", token, cookieOptions); // Set secure cookie
+    await logEvent(username, 'login', 'success');
     return res.redirect(req.query.redirect || "/login");
   }
 
+
+  await logEvent(username, 'login', 'fail');
   res.status(401).send("<h2>Invalid credentials</h2>");
 });
 
 // Logout Endpoint: Clear the cookie and redirect to login
-app.post("/logout", (req, res) => {
+app.post("/logout", async (req, res) => {
+
+  const token = req.cookies.auth;
+  const rec = verifyToken(token)
+  await logEvent(rec.username, 'logout', 'n/a');
+  
   // workaraund: set an invalid auth cookie to log out, because clearcookie does not clear domain cokkies
   res.cookie("auth", 'xxx', cookieOptions);
   res.redirect("/login");

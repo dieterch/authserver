@@ -7,6 +7,8 @@ services:
       network: host
       context: .
     restart: unless-stopped
+    volumes:
+      - "./app/auth-log.txt:/app/auth-log.txt"
     labels:
       # enable traefik docker autodetection
       - "traefik.enable=true"
