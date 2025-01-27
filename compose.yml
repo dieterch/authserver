@@ -13,7 +13,7 @@ services:
       # enable traefik docker autodetection
       - "traefik.enable=true"
 
-      # Router for dvuecutter.home.smallfamilybusiness.net
+      # Router for auth.home.smallfamilybusiness.net
       - "traefik.http.routers.auth-server.rule=Host(`auth.home.smallfamilybusiness.net`)"
       - "traefik.http.routers.auth-server.entrypoints=https"
       - "traefik.http.routers.auth-server.tls=true"
