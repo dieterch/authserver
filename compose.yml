@@ -9,6 +9,7 @@ services:
     restart: unless-stopped
     volumes:
       - "./app/auth-log.txt:/app/auth-log.txt"
+      - "./app/debug.txt:/app/debug.txt"
     labels:
       # enable traefik docker autodetection
       - "traefik.enable=true"
