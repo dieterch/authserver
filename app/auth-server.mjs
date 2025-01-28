@@ -3,7 +3,7 @@ import  cookieParser from "cookie-parser"; // Middleware for cookies
 import fs from 'fs/promises';
 import path from 'path';
 import { authenticate, getuser, generateToken, verifyToken, isAllowedOrigin, isAllowedRole } from "./auth-module.mjs";
-import { loginpage, logoutpage } from "./html-module.mjs";
+import { loginpage, logoutpage, forbiddenpage } from "./html-module.mjs";
 
 const logFile = path.resolve('auth-log.txt');
 // Helper function to log events
@@ -93,7 +93,7 @@ app.get("/verify", (req, res) => {
   const origin = req.hostname;
   // console.log('origin:',origin)
   if (!isAllowedOrigin(origin)) {
-    return res.status(403).send("<h2>Forbidden</h2>");
+    return res.status(403).send(forbiddenpage('Access restricted.'));
   }
 
   const token = req.cookies.auth;
@@ -119,7 +119,7 @@ app.get("/verify", (req, res) => {
     // Authorized
     res.sendStatus(200);
   } else {
-    res.status(403).send("<h2>Forbidden</h2>");
+    res.status(403).send(forbiddenpage('Access restricted'));
   }
 });
 
