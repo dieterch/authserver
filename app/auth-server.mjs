@@ -22,13 +22,14 @@ const cookieOptions = {
     httpOnly: true, 
     secure: true,     // Ensure this is true for HTTPS
     sameSite: "Lax",  // Ensures cookies are sent on navigation from one subdomain to another
-    domain: process.env.DOMAIN //".home.smallfamilybusiness.net", // Makes the cookie available across all subdomains
+    domain: process.env.DOMAIN, //".home.smallfamilybusiness.net", // Makes the cookie available across all subdomains
+    maxAge: parseInt(process.env.COOKIE_LIFETIME) 
 }
 let host = ''
 
 // Main Page: Show Logout Button if the user has a valid cookie
 app.get("/", (req, res) => {
-  const token = req.cookies.auth;
+  const token = req.cookies.authhome;
   // if authenticated go to the logoutpage
   const rec = verifyToken(token)
   if (token && rec) {
@@ -63,7 +64,9 @@ app.post("/login", async (req, res) => {
 
   if (authenticate(username, password)) {
     const token = generateToken(username);
-    res.cookie("auth", token, cookieOptions); // Set secure cookie
+    const rec = verifyToken(token)
+    console.log(cookieOptions)
+    res.cookie("authhome", token, cookieOptions); // Set secure cookie
     await logEvent(username, 'login', 'success');
     return res.redirect(req.query.redirect || "/login");
   }
@@ -76,12 +79,12 @@ app.post("/login", async (req, res) => {
 // Logout Endpoint: Clear the cookie and redirect to login
 app.post("/logout", async (req, res) => {
 
-  const token = req.cookies.auth;
+  const token = req.cookies.authhome;
   const rec = verifyToken(token)
   await logEvent(rec.username, 'logout', 'n/a');
   
   // workaraund: set an invalid auth cookie to log out, because clearcookie does not clear domain cokkies
-  res.cookie("auth", 'xxx', cookieOptions);
+  res.cookie("authhome", 'xxx', cookieOptions);
   res.redirect("/login");
 });
 
@@ -96,7 +99,7 @@ app.get("/verify", (req, res) => {
     return res.status(403).send(forbiddenpage('Access restricted.'));
   }
 
-  const token = req.cookies.auth;
+  const token = req.cookies.authhome;
 
   if (!token || !verifyToken(token)) {
     // redirect to login:
