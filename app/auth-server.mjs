@@ -30,8 +30,8 @@ let host = ''
 app.get("/", (req, res) => {
   const token = req.cookies.auth;
   // if authenticated go to the logoutpage
-  if (token && verifyToken(token)) {
-    const rec = verifyToken(token)
+  const rec = verifyToken(token)
+  if (token && rec) {
 
     // Formatter für Europe/Vienna
     const formatter = new Intl.DateTimeFormat('de-AT', {

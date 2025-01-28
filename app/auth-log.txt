@@ -9,3 +9,6 @@
 2025-01-27T15:40:30.990Z | User: dieter | Action: login | Status: success
 2025-01-27T17:44:45.781Z | User: dieter | Action: login | Status: success
 2025-01-27T19:57:40.467Z | User: dieter | Action: login | Status: success
+2025-01-28T05:58:33.266Z | User: admin | Action: login | Status: success
+2025-01-28T05:59:12.670Z | User: admin | Action: logout | Status: n/a
+2025-01-28T05:59:27.152Z | User: dieter | Action: login | Status: success
