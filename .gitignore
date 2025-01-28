@@ -14,3 +14,5 @@ logs
 
 auth-log.txt
 debug.txt
+
+compose.yml
