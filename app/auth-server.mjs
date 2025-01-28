@@ -70,7 +70,7 @@ app.post("/login", async (req, res) => {
 
 
   await logEvent(username, 'login', 'fail');
-  res.status(401).send("<h2>Invalid credentials</h2>");
+  res.status(401).send(forbiddenpage('Invalid credentials'));
 });
 
 // Logout Endpoint: Clear the cookie and redirect to login
