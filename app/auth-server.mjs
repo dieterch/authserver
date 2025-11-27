@@ -2,8 +2,10 @@ import express from "express";
 import  cookieParser from "cookie-parser"; // Middleware for cookies
 import fs from 'fs/promises';
 import path from 'path';
-import { authenticate, getuser, generateToken, verifyToken, isAllowedOrigin, isAllowedRole } from "./auth-module.mjs";
-import { loginpage, logoutpage, forbiddenpage } from "./html-module.mjs";
+import bcrypt from "bcrypt";
+import { authenticate, getuser, generateToken, verifyToken, isAllowedOrigin, 
+        isAllowedRole, loadUsersFromEnv, adminOnly, saveUsersToEnv, reloadEnv } from "./auth-module.mjs";
+import { loginpage, logoutpage, forbiddenpage, adminUsersPage } from "./html-module.mjs";
 
 const logFile = path.resolve('auth-log.txt');
 // Helper function to log events
@@ -15,6 +17,7 @@ const logEvent = async (user, action, status) => {
 };
 
 const app = express();
+app.set('trust proxy', true);
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -91,40 +94,107 @@ app.post("/logout", async (req, res) => {
 // Verify Endpoint (Internal Access Only)
 app.get("/verify", (req, res) => {
   host = req.headers['x-forwarded-proto'] + '://' + req.headers['x-forwarded-host']
-
   // restrict acess to internal
   const origin = req.hostname;
-  // console.log('origin:',origin)
+  
   if (!isAllowedOrigin(origin)) {
-    return res.status(403).send(forbiddenpage('Access restricted.'));
+    console.log('Origin not allowed:',origin)
+    return res.status(403).send(forbiddenpage('Origin not allowed, access restricted.'));
   }
 
   const token = req.cookies.authhome;
-
   if (!token || !verifyToken(token)) {
     // redirect to login:
     const redirecto = req.headers['x-forwarded-proto'] + '://auth' + process.env.DOMAIN + '/login'
+    console.log('referer:' + req.headers.referer + 'No valid token, redirect to login: ' + redirecto);
     return res.redirect(302,redirecto);
+    // return res.status(401).send(forbiddenpage('Unauthorized'));
   }
 
   // role based authorization
   const rec = verifyToken(token)
   const user = getuser(rec.username)
-  // console.log()
-  // console.log('================================')
-  // console.log(user)
-  // console.log('referer:', req.headers.referer)
-  // console.log('x-forwarded-host:',req.headers['x-forwarded-host'])
+  console.log()
+  console.log('================================')
+  console.log(user)
+  console.log('referer:', req.headers.referer)
+  console.log('x-forwarded-host:',req.headers['x-forwarded-host'])
+  console.log('x-forwarded-proto:',req.headers['x-forwarded-proto'])
   const allowed = isAllowedRole(user.role,req.headers['x-forwarded-host']) 
   // console.log(allowed)
 
   if (allowed) {
     // Authorized
+    console.log('Access granted for user:', rec.username);
     res.sendStatus(200);
   } else {
     res.status(403).send(forbiddenpage('Access restricted'));
   }
 });
+
+
+
+// ---------------- User Management APIs for Admins ---------------- //
+
+// List Users
+app.get('/admin/users', adminOnly, (req, res) => {
+  const users = loadUsersFromEnv();
+  res.send(adminUsersPage(users));
+});
+
+// Create User
+app.post('/admin/users/create', adminOnly, async (req, res) => {
+  const { username, password, role } = req.body;
+
+  const users = loadUsersFromEnv();
+  if (users.find(u => u.username === username)) {
+    return res.send('User existiert bereits');
+  }
+
+  // const hash = await bcrypt.hash(password, 10);
+  const hash = bcrypt.hashSync(password, 10)
+  users.push({ username, role, hash });
+
+  saveUsersToEnv(users);
+  reloadEnv();
+  res.redirect('/admin/users');
+});
+
+// Update User
+app.post('/admin/users/update', adminOnly, async (req, res) => {
+  const { username, role, password } = req.body;
+
+  const users = loadUsersFromEnv();
+  const user = users.find(u => u.username === username);
+
+  if (!user) return res.send('User nicht gefunden');
+
+  user.role = role;
+
+  if (password && password.length > 3) {
+    // user.hash = await bcrypt.hash(password, 10);
+    user.hash = bcrypt.hashSync(password, 10)
+  }
+
+  saveUsersToEnv(users);
+  reloadEnv();
+  res.redirect('/admin/users');
+});
+
+//
+app.post('/admin/users/delete', adminOnly, (req, res) => {
+  const { username } = req.body;
+
+  let users = loadUsersFromEnv();
+  users = users.filter(u => u.username !== username);
+
+  saveUsersToEnv(users);
+  reloadEnv();
+  res.redirect('/admin/users');
+});
+
+// ---------------- User Management APIs for Admins ---------------- //
+
 
 // Start the server
 const PORT = process.env.PORT || 8080;

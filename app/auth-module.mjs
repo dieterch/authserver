@@ -1,9 +1,12 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import fs from 'fs';
+import path from 'path';
 
 // Load environment variables
 dotenv.config();
+const ENV_PATH = path.resolve(process.cwd(), '.env');
 
 const secretKey = process.env.SECRET_KEY || "default-secret-key";
 
@@ -60,14 +63,28 @@ export function verifyToken(token) {
   }
 }
 
+// /**
+//  * Restrict access to /verify by checking the origin.
+//  * @param {string} origin
+//  * @returns {boolean}
+//  */
+// export function isAllowedOrigin(origin) {
+//   const allowedOrigins = ["auth-server"];
+//   return allowedOrigins.includes(origin);
+// }
+
 /**
  * Restrict access to /verify by checking the origin.
  * @param {string} origin
  * @returns {boolean}
  */
 export function isAllowedOrigin(origin) {
-  const allowedOrigins = ["auth-server"];
-  return allowedOrigins.includes(origin);
+    if (!origin) return false;
+    try {
+        return origin.endsWith(process.env.DOMAIN);
+    } catch (e) {
+        return false;
+    }
 }
 
 /**
@@ -80,4 +97,67 @@ export function isAllowedRole(role, fwhost) {
   const notAllowedAsUser = process.env.RESTRICTED_SERVERS.split(",")
   // console.log(notAllowedAsUser)
   return (role === 'admin') || !(notAllowedAsUser.includes(fwhost.split('.')[0]));
+}
+
+/**
+ * Read users from .env file
+ * @returns {array}
+ */
+export function loadUsersFromEnv() {
+    const env = fs.readFileSync(ENV_PATH, 'utf8').split('\n');
+    const users = [];
+
+    env.forEach(line => {
+      if (line.startsWith('USER_')) {
+        const [, value] = line.split('=');
+        const [username, role, hash] = value.trim().split(':');
+        users.push({ username, role, hash });
+      }
+    });
+    return users;
+}
+
+/**
+ * Save users to .env file
+ * @param {array} users
+ */
+export function saveUsersToEnv(users) {
+  let env = fs.readFileSync(ENV_PATH, 'utf8').split('\n');
+
+  // Remove old USER_ lines
+  env = env.filter(line => !line.startsWith('USER_'));
+
+  users.forEach(user => {
+    env.push(`USER_${user.username.toUpperCase()}=${user.username}:${user.role}:${user.hash}`);
+  });
+
+  fs.writeFileSync(ENV_PATH, env.join('\n'));
+}
+
+/**
+ * Admin-Guard Middleware
+ */
+export function adminOnly(req, res, next) {
+  const token = req.cookies.authhome;
+  if (!token || !verifyToken(token)) return res.redirect('/login');
+
+  const data = verifyToken(token);
+  const user = getuser(data.username);
+
+  if (!user || user.role !== 'admin') {
+    return res.status(403).send('Admins only');
+  }
+
+  next();
+}
+
+/**
+ * Reload .env file
+ */
+export function reloadEnv() {
+  const envConfig = dotenv.parse(fs.readFileSync('.env'));
+
+  for (const k in envConfig) {
+    process.env[k] = envConfig[k];
+  }
 }
