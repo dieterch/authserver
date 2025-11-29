@@ -1,203 +1,239 @@
 import express from "express";
-import  cookieParser from "cookie-parser"; // Middleware for cookies
-import fs from 'fs/promises';
-import path from 'path';
+import cookieParser from "cookie-parser";
 import bcrypt from "bcrypt";
-import { authenticate, getuser, generateToken, verifyToken, isAllowedOrigin, 
-        isAllowedRole, loadUsersFromEnv, adminOnly, saveUsersToEnv, reloadEnv } from "./auth-module.mjs";
-import { loginpage, logoutpage, forbiddenpage, adminUsersPage } from "./html-module.mjs";
+import {
+  authenticate,
+  getuser,
+  generateToken,
+  verifyToken,
+  isAllowedOrigin,
+  isAllowedRole,
+  loadUsersFromEnv,
+  adminOnly,
+  saveUsersToEnv,
+  reloadEnv,
+} from "./auth-module.mjs";
 
-const logFile = path.resolve('auth-log.txt');
-// Helper function to log events
-const logEvent = async (user, action, status) => {
-  const timestamp = new Date().toISOString();
-  const logEntry = `${timestamp} | User: ${user} | Action: ${action} | Status: ${status}\n`;
-  console.log(logEntry); // Log to console
-  await fs.appendFile(logFile, logEntry); // Append to log file
-};
+import {
+  loginpage,
+  logoutpage,
+  forbiddenpage,
+  adminUsersPage,
+} from "./html-module.mjs";
+import { log, levels } from "./logger.mjs";
 
 const app = express();
-app.set('trust proxy', true);
+app.set("trust proxy", true);
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 const cookieOptions = {
-    httpOnly: true, 
-    secure: true,     // Ensure this is true for HTTPS
-    sameSite: "Lax",  // Ensures cookies are sent on navigation from one subdomain to another
-    domain: process.env.DOMAIN, //".home.smallfamilybusiness.net", // Makes the cookie available across all subdomains
-    maxAge: parseInt(process.env.COOKIE_LIFETIME) 
+  httpOnly: true,
+  secure: true,
+  sameSite: "Lax",
+  domain: process.env.DOMAIN,
+  maxAge: parseInt(process.env.COOKIE_LIFETIME),
+};
+
+let host = "";
+
+/**
+ * Helper: Liefert nur die Origin (scheme + host), z.B.:
+ * https://expense.home.smallfamilybusiness.net
+ *
+ * Bevorzugt Traefik-Header, fällt sauber zurück.
+ */
+function getOrigin(req) {
+  const proto = (req.headers["x-forwarded-proto"] || req.protocol || "http")
+    .split(",")[0]
+    .trim();
+  const hostHeader = (
+    req.headers["x-forwarded-host"] ||
+    req.get("host") ||
+    "localhost"
+  )
+    .split(",")[0]
+    .trim();
+  return `${proto}://${hostHeader}`;
 }
-let host = ''
 
-// Main Page: Show Logout Button if the user has a valid cookie
-app.get("/", (req, res) => {
+/**
+ * Hauptroute – zeigt je nach Login-Status Login oder Logout-Seite
+ */
+app.get("/", async (req, res) => {
   const token = req.cookies.authhome;
-  // if authenticated go to the logoutpage
-  const rec = verifyToken(token)
-  if (token && rec) {
+  const session = verifyToken(token);
 
-    // Formatter für Europe/Vienna
-    const formatter = new Intl.DateTimeFormat('de-AT', {
-      timeZone: 'Europe/Vienna',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      // second: '2-digit',
+  if (session) {
+    await log(levels.INFO, "User session active", {
+      user: session.username,
+      url: getOrigin(req),
     });
-
-    const prompt = `${String(rec.username).toUpperCase()}, ${formatter.format(new Date(rec.exp * 1000))}`
-    return res.send(logoutpage(prompt));
+    return res.send(logoutpage(session.username));
   }
-  // else go to login.
+
   res.redirect("/login");
 });
 
-// Show the Login Page
+/**
+ * Login-Seite anzeigen
+ */
 app.get("/login", (req, res) => {
   const redirectUrl = host || "/";
-  res.send(loginpage(redirectUrl))
+  res.send(loginpage(redirectUrl));
 });
 
-// Handle Login
+/**
+ * Login-Verarbeitung
+ */
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   if (authenticate(username, password)) {
     const token = generateToken(username);
-    const rec = verifyToken(token)
-    console.log(cookieOptions)
-    res.cookie("authhome", token, cookieOptions); // Set secure cookie
-    await logEvent(username, 'login', 'success');
-    return res.redirect(req.query.redirect || "/login");
+    res.cookie("authhome", token, cookieOptions);
+
+    await log(levels.SECURITY, "Login erfolgreich", {
+      user: username,
+      ip: req.ip,
+      url: getOrigin(req),
+    });
+    return res.redirect(req.query.redirect || "/");
   }
 
-
-  await logEvent(username, 'login', 'fail');
-  res.status(401).send(forbiddenpage('Invalid credentials'));
+  await log(levels.SECURITY, "Login fehlgeschlagen", {
+    user: username,
+    ip: req.ip,
+    url: getOrigin(req),
+  });
+  res.status(401).send(forbiddenpage("Invalid credentials"));
 });
 
-// Logout Endpoint: Clear the cookie and redirect to login
+/**
+ * Logout
+ */
 app.post("/logout", async (req, res) => {
+  const session = verifyToken(req.cookies.authhome);
 
-  const token = req.cookies.authhome;
-  const rec = verifyToken(token)
-  await logEvent(rec.username, 'logout', 'n/a');
-  
-  // workaraund: set an invalid auth cookie to log out, because clearcookie does not clear domain cokkies
-  res.cookie("authhome", 'xxx', cookieOptions);
+  if (session) {
+    await log(levels.INFO, "Logout", {
+      user: session.username,
+      url: getOrigin(req),
+    });
+  }
+
+  res.cookie("authhome", "xxx", cookieOptions);
   res.redirect("/login");
 });
 
-// Verify Endpoint (Internal Access Only)
-app.get("/verify", (req, res) => {
-  host = req.headers['x-forwarded-proto'] + '://' + req.headers['x-forwarded-host']
-  // restrict acess to internal
+/**
+ * Verify-Endpunkt für Traefik ForwardAuth
+ */
+app.get("/verify", async (req, res) => {
+  host =
+    req.headers["x-forwarded-proto"] + "://" + req.headers["x-forwarded-host"];
   const origin = req.hostname;
-  
+
   if (!isAllowedOrigin(origin)) {
-    console.log('Origin not allowed:',origin)
-    return res.status(403).send(forbiddenpage('Origin not allowed, access restricted.'));
+    await log(levels.WARN, "Unzulässiger Origin", {
+      origin,
+      ip: req.ip,
+      url: getOrigin(req),
+    });
+    return res.status(403).send(forbiddenpage("Origin not allowed"));
   }
 
   const token = req.cookies.authhome;
-  if (!token || !verifyToken(token)) {
-    // redirect to login:
-    const redirecto = req.headers['x-forwarded-proto'] + '://auth' + process.env.DOMAIN + '/login'
-    console.log('referer:' + req.headers.referer + 'No valid token, redirect to login: ' + redirecto);
-    return res.redirect(302,redirecto);
-    // return res.status(401).send(forbiddenpage('Unauthorized'));
+
+  if (!token) {
+    await log(levels.DEBUG, "Kein Token vorhanden", {
+      path: req.originalUrl,
+      origin: getOrigin(req),
+    });
   }
 
-  // role based authorization
-  const rec = verifyToken(token)
-  const user = getuser(rec.username)
-  console.log()
-  console.log('================================')
-  console.log(user)
-  console.log('referer:', req.headers.referer)
-  console.log('x-forwarded-host:',req.headers['x-forwarded-host'])
-  console.log('x-forwarded-proto:',req.headers['x-forwarded-proto'])
-  const allowed = isAllowedRole(user.role,req.headers['x-forwarded-host']) 
-  // console.log(allowed)
+  const session = verifyToken(token);
+
+  if (!session) {
+    await log(levels.DEBUG, "Token ungültig oder abgelaufen", {
+      path: req.originalUrl,
+      origin: getOrigin(req),
+    });
+  }
+
+  if (!session) {
+    await log(levels.SECURITY, "Kein gültiges Token – redirect login", {
+      origin,
+      url: getOrigin(req),
+    });
+    return res.redirect(
+      302,
+      `${req.headers["x-forwarded-proto"]}://auth${process.env.DOMAIN}/login`
+    );
+  }
+
+  const user = getuser(session.username);
+
+  if (!user) {
+    await log(levels.DEBUG, "Token-User nicht in USER_* definiert", {
+      decoded: session.username,
+    });
+  }
+
+  const allowed = isAllowedRole(user.role, req.headers["x-forwarded-host"]);
 
   if (allowed) {
-    // Authorized
-    console.log('Access granted for user:', rec.username);
-    res.sendStatus(200);
-  } else {
-    res.status(403).send(forbiddenpage('Access restricted'));
+    await log(levels.DEBUG, "RBAC erlaubt Zugriff", {
+      user: session.username,
+      role: user.role,
+      service: req.headers["x-forwarded-host"],
+    });
+
+    await log(levels.INFO, "Access granted", {
+      user: session.username,
+      url: getOrigin(req),
+    });
+    return res.sendStatus(200);
   }
+
+  await log(levels.SECURITY, "Access denied", {
+    user: session.username,
+    url: getOrigin(req),
+  });
+  res.status(403).send(forbiddenpage("Access restricted"));
 });
 
-
-
-// ---------------- User Management APIs for Admins ---------------- //
-
-// List Users
-app.get('/admin/users', adminOnly, (req, res) => {
-  const users = loadUsersFromEnv();
-  res.send(adminUsersPage(users));
+/** ADMIN: User Verwaltung */
+app.get("/admin/users", adminOnly, (req, res) => {
+  res.send(adminUsersPage(loadUsersFromEnv()));
 });
 
-// Create User
-app.post('/admin/users/create', adminOnly, async (req, res) => {
+app.post("/admin/users/create", adminOnly, async (req, res) => {
   const { username, password, role } = req.body;
-
   const users = loadUsersFromEnv();
-  if (users.find(u => u.username === username)) {
-    return res.send('User existiert bereits');
+
+  if (users.find((u) => u.username === username)) {
+    return res.send("User existiert bereits");
   }
 
-  // const hash = await bcrypt.hash(password, 10);
-  const hash = bcrypt.hashSync(password, 10)
-  users.push({ username, role, hash });
+  users.push({
+    username,
+    role,
+    hash: bcrypt.hashSync(password, 10),
+  });
 
   saveUsersToEnv(users);
   reloadEnv();
-  res.redirect('/admin/users');
+
+  await log(levels.INFO, "User erstellt", {
+    username,
+    role,
+    url: getOrigin(req),
+  });
+  res.redirect("/admin/users");
 });
 
-// Update User
-app.post('/admin/users/update', adminOnly, async (req, res) => {
-  const { username, role, password } = req.body;
-
-  const users = loadUsersFromEnv();
-  const user = users.find(u => u.username === username);
-
-  if (!user) return res.send('User nicht gefunden');
-
-  user.role = role;
-
-  if (password && password.length > 3) {
-    // user.hash = await bcrypt.hash(password, 10);
-    user.hash = bcrypt.hashSync(password, 10)
-  }
-
-  saveUsersToEnv(users);
-  reloadEnv();
-  res.redirect('/admin/users');
-});
-
-//
-app.post('/admin/users/delete', adminOnly, (req, res) => {
-  const { username } = req.body;
-
-  let users = loadUsersFromEnv();
-  users = users.filter(u => u.username !== username);
-
-  saveUsersToEnv(users);
-  reloadEnv();
-  res.redirect('/admin/users');
-});
-
-// ---------------- User Management APIs for Admins ---------------- //
-
-
-// Start the server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`Auth server running on port ${PORT}`);
+  log(levels.INFO, `Auth Server gestartet`, { port: PORT });
 });
