@@ -30,6 +30,7 @@ const app = express();
 app.set("trust proxy", true);
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
 app.use("/static", express.static(path.join(__dirname, "static")));
 
 const cookieOptions = {
