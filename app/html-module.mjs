@@ -1,8 +1,10 @@
 export function loginpage(redirectUrl) {
   return `
+  <html>
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/favicon.ico">
     <title>Login</title>
     <style>
       /* Basic Reset */
@@ -102,34 +104,56 @@ export function loginpage(redirectUrl) {
 
 export const logoutpage = (prompt = '') => {
     return `
-    <style>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="icon" href="/static/favicon.ico">
+      <title>Logout</title>
+      <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
         h4 { color: #333; }
         button { padding: 10px 20px; font-size: 16px; background-color: #007BFF; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
         button:hover { background-color: #0056b3; }
-    </style>
-    <h4>${prompt}</h4>
-    <form action="/logout" method="POST">
-        <button type="submit">Logout</button>
-    </form>`;
+      </style>
+    </head>
+    <body>
+      <h4>${prompt}</h4>
+      <form action="/logout" method="POST">
+          <button type="submit">Logout</button>
+      </form>
+    </body>
+    </html>`;
 }
 
 export const forbiddenpage = (prompt = '') => {
   return `
-  <style>
-      body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-      h2 { color: #333; }
-      button { padding: 10px 20px; font-size: 16px; background-color: #007BFF; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
-      button:hover { background-color: #0056b3; }
-  </style>
-  <h2>${prompt}</h2>`;
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/favicon.ico">
+    <title>Forbidden</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        h2 { color: #333; }
+        button { padding: 10px 20px; font-size: 16px; background-color: #007BFF; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+    </style>
+  </head>
+  <body>
+    <h4>${prompt}</h4>
+  </body>
+  </html>`;
 }
 
 export function adminUsersPage(users) {
   return `
+  <html>
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/favicon.ico">
     <title>User Verwaltung</title>
     <style>
       * {
